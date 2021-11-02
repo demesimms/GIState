@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>
+      Add or remove graphics from a FeatureLayer | Sample | ArcGIS API for
+      JavaScript 4.21
+    </title>
+    {%load static%}
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.21/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.21/"></script>
+    <style>
+      html,
+      body,
+      #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+      }
+      #add {
+          margin-bottom: 5px;
+      }
+      #actions {
+          padding: 5px;
+      }
+      button:disabled {
+          opacity: 0.4;
+          -moz-opacity: 0.4; 
+          cursor: default;
+      }
+    </style>
+
+    <script>
+      const globalVars = { lat: '', lng: '', address: ''}
+      // globalVars.lat = 45
+      // console.log(globalVars.lng)
+      require([
+        "esri/config",
+        "esri/Map",
+        "esri/views/SceneView",
+        "esri/Basemap",
+        "esri/layers/VectorTileLayer",
+        "esri/layers/FeatureLayer",
+        "esri/Graphic",
+        "esri/widgets/Legend",
+        "esri/widgets/Search",
+        "esri/PopupTemplate",
+        "esri/Editor"
+      ], (
+        esriConfig,
+        Map,
+        SceneView,
+        Basemap,
+        VectorTileLayer,
+        FeatureLayer,
+        Graphic,
+        Legend,
+        Search,
+        PopupTemplate,
+        Editor
+      ) => {
+        // create map using custom basemap from ArcGIS Online
+        // const map = new Map({
+        //   basemap: new Basemap({
+        //     baseLayers: [
+        //       new VectorTileLayer({
+        //         portalItem: { id: "474f0cb226884dd68f707ab0f2f1aa10" }
+        //       })
+        //     ],
+        //     referenceLayers: [
+        //       new VectorTileLayer({
+        //         portalItem: { id: "1768e8369a214dfab4e2167d5c5f2454" }
+        //       })
+        //     ]
+        //   })
+        // });
+
+        // const view = new MapView({
+        //   container: "viewDiv",
+        //   map: map,
+        //   zoom: 11,
+        //   center: [-84.51, 39.10] // longitude, latitude
+        // });
+
+        //GEOCODE. ALLOW USERS TO CLICK ON THE MAP, CREATE MARKER WITH DESCRIPTION, AND ALLOW USERS TO SAVE TO DATABASE
+
+        esriConfig.apiKey = "AAPK4cc8b6d1a63744bab6dd68b127fbb22d8rSt5toPET6VMAuhKODa-7UErZ70PcfYRYIcZ3kI9lgYGgN0BvERbhTwDnElRLwj";
+
+        const map = new Map({
+      basemap: "arcgis-topographic", //Basemap layer service
+      ground: "world-elevation", //Elevation service
+    });
+
+    const view = new SceneView({
+      container: "viewDiv",
+      map: map,
+      camera: {
+        position: {
+          x: -84.512721, //Longitude
+          y: 39.096444, //Latitude
+          z: 1000//Meters
+        },
+        tilt: 50
+      }
+      });
+
+        const search = new Search({  //Add Search widget
+                        view: view
+                    });
+                    view.ui.add(search, "top-left"); 
+
+        search.on("search-complete", function(event){
+
+                    let location = search.searchTerm;
+                      // globalThis.location = location
+                      console.log(location,"aaa")
+                      
+                    //  DATAFINITI API CALL
+                      fetch("https://api.datafiniti.co/v4/properties/search", {
+                        "method": "POST",
+                        "headers": {
+                          Accept: 'application/json',
+                          'Authorization': 'Bearer ' + API_token,
+                              'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          'query': `postalCode:${location} AND propertyType:Single Family Dwelling`,
+                          'format': 'JSON',
+                          'num_records': 1,
+                          'download': false
+                        })
+                        })
+                        .then(response => response.json())
+                        .then(response => {
+                          // console.log(response.records[0].address);
+                          // console.log(response.records[0].lotSizeValue);
+                          // console.log(response.records[0].imageURLs);
+                          // console.log(response.records[0].listingName);
+                          // console.log(response.records[0].longitude);
+
+                          globalVars.lng = response.records[0].longitude;
+                      // pete comment: globalVars.lat = response.records[0].longitude
+                      globalVars.lat = response.records[0].latitude;
+                      globalVars.address=response.records[0].address;
+                      globalVars.sqftV=response.records[0].floorSizeValue;
+                      globalVars.sqftU=response.records[0].floorSizeUnit;
+                      globalVars.imgURL=response.records[0].imageURLS;
+                      globalVars.bed=response.records[0].numBedroom;
+                      globalVars.bath=response.records[0].numBathroom;
+
+                          })
+                          .catch(err => {
+                            console.error(err);
+                          });
+        // create empty FeatureLayer
+        const propertyLayer = new FeatureLayer({
+          // create an instance of esri/layers/support/Field for each field object
+          title: "Properties",
+          fields: [
+            {
+              name: "ObjectID",
+              sqftV: "ObjectID",
+              sqftU: "ObjectID",
+              bed: "ObjectID",
+              bath: "ObjectID",
+              imgURL: "ObjectID"
+            },
+            {
+              name: "Name",
+              alias: "sqftU",
+              type: "string"
+            },
+            {
+              name: "Type",
+              alias: "Type",
+              type: "string"
+            }
+          ],
+          objectIdField: "ObjectID",
+          geometryType: "point",
+          spatialReference: { wkid: 4326 },
+          source: [], // adding an empty feature collection
+          renderer: {
+            type: "simple",
+            symbol: {
+              type: "web-style", // autocasts as new WebStyleSymbol()
+              styleName: "Esri2DPointSymbolsStyle",
+              name: "landmark"
+            }
+          },
+          popupTemplate: {
+            title: "{Name}",
+            sqftU: "{sqftU}",
+            sip: globalVars.sqftV
+          }
+        });
+        map.add(propertyLayer);
+
+        // add legend
+        const legend = new Legend({
+          view: view
+        });
+        view.ui.add(legend, "bottom-left");
+
+        // add buttons to the mapView
+        view.ui.add(document.getElementById("actions"), "top-right");
+
+        const addBtn = document.getElementById("add");
+        const removeBtn = document.getElementById("remove");
+
+        addBtn.addEventListener("click", addFeatures);
+        removeBtn.addEventListener("click", removeFeatures);
+
+        // check if features have already been added to determine disabled state of buttons
+        propertyLayer.queryFeatures().then((results) => {
+          if (results.features.length === 0) {
+            addBtn.disabled = false;
+            removeBtn.disabled = true;
+          } else {
+            addBtn.disabled = true;
+            removeBtn.disabled = false;
+          }
+        });
+
+        // fires when "Add Features" button is clicked
+        function addFeatures() {
+          // data to be added to the map
+          const data = [
+            {
+              LATITUDE: globalVars.lat,
+              // pete comment LATITUDE: globalVars.lat
+              LONGITUDE: globalVars.lng,
+              NAME: globalVars.address,
+              SQFTU: globalVars.sqftU
+
+            },
+          ];
+
+          // create an array of graphics based on the data above
+          var graphics = [];
+          var graphic;
+          for (var i = 0; i < data.length; i++) {
+            graphic = new Graphic({
+              geometry: {
+                type: "point",
+                latitude: data[i].LATITUDE,
+                longitude: data[i].LONGITUDE
+              },
+              attributes: data[i]
+            });
+            graphics.push(graphic);
+          }
+
+          // addEdits object tells applyEdits that you want to add the features
+          const addEdits = {
+            addFeatures: graphics
+          };
+
+          // apply the edits to the layer
+          applyEditsToLayer(addEdits);
+        }
+
+        // fires when "Remove Features" button clicked
+        function removeFeatures() {
+          // query for the features you want to remove
+          propertyLayer.queryFeatures().then((results) => {
+            // edits object tells apply edits that you want to delete the features
+            const deleteEdits = {
+              deleteFeatures: results.features
+            };
+            // apply edits to the layer
+            applyEditsToLayer(deleteEdits);
+          });
+        }
+
+        function applyEditsToLayer(edits) {
+          propertyLayer
+            .applyEdits(edits)
+            .then((results) => {
+              // if edits were removed
+              if (results.deleteFeatureResults.length > 0) {
+                console.log(
+                  results.deleteFeatureResults.length,
+                  "features have been removed"
+                );
+                addBtn.disabled = false;
+                removeBtn.disabled = true;
+              }
+              // if features were added - call queryFeatures to return
+              //    newly added graphics
+              if (results.addFeatureResults.length > 0) {
+                var objectIds = [];
+                results.addFeatureResults.forEach((item) => {
+                  objectIds.push(item.objectId);
+                });
+                // query the newly added features from the layer
+                propertyLayer
+                  .queryFeatures({
+                    objectIds: objectIds
+                  })
+                  .then((results) => {
+                    console.log(
+                      results.features.length,
+                      "features have been added.", globalVars.lat, globalVars.address, globalVars.lng, globalVars.sqftU
+                    );
+                    addBtn.disabled = true;
+                    removeBtn.disabled = false;
+                  });
+              }
+            })
+            .catch((error) => {
+              console.error();
+            });
+        }
+      });
+      });
+    </script>
+                  <script src="{%static 'secrets.js'%}" defer></script>
+
+                  <script src="{%static 'property.js'%}" defer></script>
+  </head>
+
+  <body>
+    <div id="viewDiv"></div>
+    <div id="actions" class="esri-widget">
+      <button class="esri-button" id="add">Search Results</button>
+      <button class="esri-button" id="remove">Clear Results</button>
+    </div>
+  </body>
+</html>
+
+
