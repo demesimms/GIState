@@ -1,21 +1,18 @@
-<!DOCTYPE html>
+<html>
   <head>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="initial-scale=1,maximum-scale=1,user-scalable=no"
     />
-    <title>
-      Add or remove graphics from a FeatureLayer | Sample | ArcGIS API for
-      JavaScript 4.21
-    </title>
-    {%load static%}
+    <title>MapNotesLayer | Sample | ArcGIS API for JavaScript 4.21</title>
 
     <link
       rel="stylesheet"
-      href="https://js.arcgis.com/4.21/esri/themes/light/main.css"
+      href="https://js.arcgis.com/4.21/esri/themes/dark/main.css"
     />
     <script src="https://js.arcgis.com/4.21/"></script>
+
     <style>
       html,
       body,
@@ -25,316 +22,569 @@
         height: 100%;
         width: 100%;
       }
-      #add {
-          margin-bottom: 5px;
+
+      /*for sketch buttons: top-right*/
+      #topbar {
+        background: #242424;
+        position: absolute;
+        top: 500px;
+        right: 15px;
+        padding: 10px;
+        align-items: center;
+        text-align: center;
+        display: flex;
+        flex-flow: row nowrap;
       }
-      #actions {
-          padding: 5px;
+
+      #sampleInstructions {
+        padding: 10px;
+        background-color: #242424;
+        width: 300px;
+        color: white;
       }
+
+      /*for saving WebMap: bottom-right*/
+      #sidebarDiv {
+        width: 240px;
+        padding: 10px;
+        height: 200px;
+      }
+
+      /*for map note text editing: bottom-left*/
+      #textInputDiv {
+        width: 200px;
+        padding: 5px;
+        color: black;
+        background-color: white;
+      }
+
+      #overlayDiv {
+        z-index: 1;
+        position: absolute;
+        margin: auto auto;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 280px;
+        height: 180px;
+        padding: 10px;
+        background-color: white;
+        border: 1px solid grey;
+        visibility: hidden;
+      }
+
+      .action-button {
+        margin-right: 5px;
+        font-size: 16px;
+        background-color: transparent;
+        border: 1px solid #d3d3d3;
+        color: #adadad;
+        height: 32px;
+        width: 32px;
+        text-align: center;
+        box-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
+        font-family: Arial;
+      }
+
+      .action-button:hover,
+      .action-button:focus {
+        background: #0079c1;
+        color: #e4e4e4;
+      }
+
+      .active {
+        background: #0079c1;
+        color: #e4e4e4;
+      }
+
       button:disabled {
-          opacity: 0.4;
-          -moz-opacity: 0.4; 
-          cursor: default;
+        opacity: 0.4;
+        -moz-opacity: 0.4; /* Firefox and Mozilla browsers */
+        -webkit-opacity: 0.4; /* Safari */
+        cursor: default;
+      }
+
+      input[type="text"] {
+        width: 100%;
       }
     </style>
 
     <script>
-      const globalVars = { lat: '', lng: '', address: ''}
-      // globalVars.lat = 45
-      // console.log(globalVars.lng)
+      //  esriConfig.apiKey = "AAPK4cc8b6d1a63744bab6dd68b127fbb22d8rSt5toPET6VMAuhKODa-7UErZ70PcfYRYIcZ3kI9lgYGgN0BvERbhTwDnElRLwj";
       require([
+        "esri/views/MapView",
         "esri/config",
-        "esri/Map",
-        "esri/views/SceneView",
-        "esri/Basemap",
-        "esri/layers/VectorTileLayer",
-        "esri/layers/FeatureLayer",
+        "esri/WebMap",
+        "esri/widgets/LayerList",
+        "esri/widgets/Expand",
+        "esri/widgets/Sketch/SketchViewModel",
+        "esri/layers/MapNotesLayer",
         "esri/Graphic",
-        "esri/widgets/Legend",
-        "esri/widgets/Search",
-        "esri/PopupTemplate",
-        "esri/Editor"
-      ], (
+        "esri/symbols/TextSymbol",
+        "esri/tasks/Locator",
+        "esri/widgets/Directions"
+      ], function (
+        MapView,
         esriConfig,
-        Map,
-        SceneView,
-        Basemap,
-        VectorTileLayer,
-        FeatureLayer,
+        WebMap,
+        LayerList,
+        Expand,
+        SketchViewModel,
+        MapNotesLayer,
         Graphic,
-        Legend,
-        Search,
-        PopupTemplate,
-        Editor
-      ) => {
-        // create map using custom basemap from ArcGIS Online
-        // const map = new Map({
-        //   basemap: new Basemap({
-        //     baseLayers: [
-        //       new VectorTileLayer({
-        //         portalItem: { id: "474f0cb226884dd68f707ab0f2f1aa10" }
-        //       })
-        //     ],
-        //     referenceLayers: [
-        //       new VectorTileLayer({
-        //         portalItem: { id: "1768e8369a214dfab4e2167d5c5f2454" }
-        //       })
-        //     ]
-        //   })
-        // });
+        TextSymbol,
+        Locator,
+        Directions
+      ) {
 
-        // const view = new MapView({
-        //   container: "viewDiv",
-        //   map: map,
-        //   zoom: 11,
-        //   center: [-84.51, 39.10] // longitude, latitude
-        // });
-
-        //GEOCODE. ALLOW USERS TO CLICK ON THE MAP, CREATE MARKER WITH DESCRIPTION, AND ALLOW USERS TO SAVE TO DATABASE
-
-        esriConfig.apiKey = "AAPK4cc8b6d1a63744bab6dd68b127fbb22d8rSt5toPET6VMAuhKODa-7UErZ70PcfYRYIcZ3kI9lgYGgN0BvERbhTwDnElRLwj";
-
-        const map = new Map({
-      basemap: "arcgis-topographic", //Basemap layer service
-      ground: "world-elevation", //Elevation service
-    });
-
-    const view = new SceneView({
-      container: "viewDiv",
-      map: map,
-      camera: {
-        position: {
-          x: -84.512721, //Longitude
-          y: 39.096444, //Latitude
-          z: 1000//Meters
-        },
-        tilt: 50
-      }
-      });
-
-        const search = new Search({  //Add Search widget
-                        view: view
-                    });
-                    view.ui.add(search, "top-left"); 
-
-        search.on("search-complete", function(event){
-
-                    let location = search.searchTerm;
-                      // globalThis.location = location
-                      console.log(location,"aaa")
-                      
-                    //  DATAFINITI API CALL
-                      fetch("https://api.datafiniti.co/v4/properties/search", {
-                        "method": "POST",
-                        "headers": {
-                          Accept: 'application/json',
-                          'Authorization': 'Bearer ' + API_token,
-                              'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                          'query': `postalCode:${location} AND propertyType:Single Family Dwelling`,
-                          'format': 'JSON',
-                          'num_records': 1,
-                          'download': false
-                        })
-                        })
-                        .then(response => response.json())
-                        .then(response => {
-                          // console.log(response.records[0].address);
-                          // console.log(response.records[0].lotSizeValue);
-                          // console.log(response.records[0].imageURLs);
-                          // console.log(response.records[0].listingName);
-                          // console.log(response.records[0].longitude);
-
-                          globalVars.lng = response.records[0].longitude;
-                      // pete comment: globalVars.lat = response.records[0].longitude
-                      globalVars.lat = response.records[0].latitude;
-                      globalVars.address=response.records[0].address;
-                      globalVars.sqftV=response.records[0].floorSizeValue;
-                      globalVars.sqftU=response.records[0].floorSizeUnit;
-                      globalVars.imgURL=response.records[0].imageURLS;
-                      globalVars.bed=response.records[0].numBedroom;
-                      globalVars.bath=response.records[0].numBathroom;
-
-                          })
-                          .catch(err => {
-                            console.error(err);
-                          });
-        // create empty FeatureLayer
-        const propertyLayer = new FeatureLayer({
-          // create an instance of esri/layers/support/Field for each field object
-          title: "Properties",
-          fields: [
-            {
-              name: "ObjectID",
-              sqftV: "ObjectID",
-              sqftU: "ObjectID",
-              bed: "ObjectID",
-              bath: "ObjectID",
-              imgURL: "ObjectID"
-            },
-            {
-              name: "Name",
-              alias: "sqftU",
-              type: "string"
-            },
-            {
-              name: "Type",
-              alias: "Type",
-              type: "string"
-            }
-          ],
-          objectIdField: "ObjectID",
-          geometryType: "point",
-          spatialReference: { wkid: 4326 },
-          source: [], // adding an empty feature collection
-          renderer: {
-            type: "simple",
-            symbol: {
-              type: "web-style", // autocasts as new WebStyleSymbol()
-              styleName: "Esri2DPointSymbolsStyle",
-              name: "landmark"
-            }
-          },
-          popupTemplate: {
-            title: "{Name}",
-            sqftU: "{sqftU}",
-            sip: globalVars.sqftV
-          }
+        const locatorTask = new Locator({
+          url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer"
         });
-        map.add(propertyLayer);
+        
+        
+        const map = new WebMap({
+          basemap: "hybrid"
+        });
 
-        // add legend
-        const legend = new Legend({
+        const view = new MapView({
+          map: map,
+          center: [-84.51, 39.10], // Nuuk, Greenland
+          zoom: 14,
+          container: "viewDiv"
+        });
+
+        let directionsWidget = new Directions({
           view: view
         });
-        view.ui.add(legend, "bottom-left");
 
-        // add buttons to the mapView
-        view.ui.add(document.getElementById("actions"), "top-right");
-
-        const addBtn = document.getElementById("add");
-        const removeBtn = document.getElementById("remove");
-
-        addBtn.addEventListener("click", addFeatures);
-        removeBtn.addEventListener("click", removeFeatures);
-
-        // check if features have already been added to determine disabled state of buttons
-        propertyLayer.queryFeatures().then((results) => {
-          if (results.features.length === 0) {
-            addBtn.disabled = false;
-            removeBtn.disabled = true;
-          } else {
-            addBtn.disabled = true;
-            removeBtn.disabled = false;
-          }
+        // Add the Directions widget to the top right corner of the view
+        view.ui.add(directionsWidget, {
+          position: "top-right"
         });
 
-        // fires when "Add Features" button is clicked
-        function addFeatures() {
-          // data to be added to the map
-          const data = [
-            {
-              LATITUDE: globalVars.lat,
-              // pete comment LATITUDE: globalVars.lat
-              LONGITUDE: globalVars.lng,
-              NAME: globalVars.address,
-              SQFTU: globalVars.sqftU
+        view.popup.autoOpenEnabled = false;
+        view.on("click", (event) => {
+          // Get the coordinates of the click on the view
+          const lat = Math.round(event.mapPoint.latitude * 1000) / 1000;
+          const lon = Math.round(event.mapPoint.longitude * 1000) / 1000;
 
-            },
-          ];
+          view.popup.open({
+            // Set the popup's title to the coordinates of the location
+            title: "Reverse geocode: [" + lon + ", " + lat + "]",
+            location: event.mapPoint // Set the location of the popup to the clicked location
+          });
 
-          // create an array of graphics based on the data above
-          var graphics = [];
-          var graphic;
-          for (var i = 0; i < data.length; i++) {
-            graphic = new Graphic({
-              geometry: {
-                type: "point",
-                latitude: data[i].LATITUDE,
-                longitude: data[i].LONGITUDE
-              },
-              attributes: data[i]
-            });
-            graphics.push(graphic);
-          }
-
-          // addEdits object tells applyEdits that you want to add the features
-          const addEdits = {
-            addFeatures: graphics
+          const params = {
+            location: event.mapPoint
           };
 
-          // apply the edits to the layer
-          applyEditsToLayer(addEdits);
-        }
-
-        // fires when "Remove Features" button clicked
-        function removeFeatures() {
-          // query for the features you want to remove
-          propertyLayer.queryFeatures().then((results) => {
-            // edits object tells apply edits that you want to delete the features
-            const deleteEdits = {
-              deleteFeatures: results.features
-            };
-            // apply edits to the layer
-            applyEditsToLayer(deleteEdits);
-          });
-        }
-
-        function applyEditsToLayer(edits) {
-          propertyLayer
-            .applyEdits(edits)
-            .then((results) => {
-              // if edits were removed
-              if (results.deleteFeatureResults.length > 0) {
-                console.log(
-                  results.deleteFeatureResults.length,
-                  "features have been removed"
-                );
-                addBtn.disabled = false;
-                removeBtn.disabled = true;
-              }
-              // if features were added - call queryFeatures to return
-              //    newly added graphics
-              if (results.addFeatureResults.length > 0) {
-                var objectIds = [];
-                results.addFeatureResults.forEach((item) => {
-                  objectIds.push(item.objectId);
-                });
-                // query the newly added features from the layer
-                propertyLayer
-                  .queryFeatures({
-                    objectIds: objectIds
-                  })
-                  .then((results) => {
-                    console.log(
-                      results.features.length,
-                      "features have been added.", globalVars.lat, globalVars.address, globalVars.lng, globalVars.sqftU
-                    );
-                    addBtn.disabled = true;
-                    removeBtn.disabled = false;
-                  });
-              }
+          // Display the popup
+          // Execute a reverse geocode using the clicked location
+          locatorTask
+            .locationToAddress(params)
+            .then((response) => {
+              // If an address is successfully found, show it in the popup's content
+              view.popup.content = response.address;
             })
-            .catch((error) => {
-              console.error();
+            .catch(() => {
+              // If the promise fails and no result is found, show a generic message
+              view.popup.content = "No address was found for this location";
             });
-        }
-      });
+        });
+// esriConfig.apiKey = "AAPK4cc8b6d1a63744bab6dd68b127fbb22d8rSt5toPET6VMAuhKODa-7UErZ70PcfYRYIcZ3kI9lgYGgN0BvERbhTwDnElRLwj";
+        // add a MapNotesLayer for the sketches and map notes
+        let sketchLayer = new MapNotesLayer();
+        view.map.add(sketchLayer);
+
+        // use this counter for new map notes title purposes
+        let count = 0;
+
+        // Create helpful instructions
+        const sampleInstructions = document.createElement("div");
+        sampleInstructions.id = "sampleInstructions";
+        sampleInstructions.innerHTML =
+          "Use the top right toolbar to select a sketch tool or delete all sketched graphics.</br></br>Selecting a feature will allow you to move the feature, and modify vertices (polylines and polygons). If the feature is text, you will be able to move the feature and edit the text with the editor in the lower-left.</br></br>Click on the Save button to save as a new WebMap.";
+
+        // add the LayerList widget and instructions inside Expand widgets
+        view.ui.add(
+          [
+            new Expand({
+              expandIconClass: "esri-icon-question",
+              expandTooltip: "How to use this sample",
+              view: view,
+              content: sampleInstructions,
+              group: "top-left"
+            }),
+            new Expand({
+              content: new LayerList({
+                view: view
+              }),
+              view: view,
+              group: "top-left"
+            })
+          ],
+          "top-left"
+        );
+
+        const textExpand = new Expand({
+          view: view,
+          content: document.getElementById("textInputDiv")
+        });
+        view.ui.add(textExpand, "bottom-left");
+
+        view.when(function () {
+          const pointLayer = sketchLayer.pointLayer;
+          const polylineLayer = sketchLayer.polylineLayer;
+          const polygonLayer = sketchLayer.polygonLayer;
+          const textLayer = sketchLayer.textLayer;
+          // create a new sketch view model for each different map note type
+          // this allows both the creation and modification of each different map note
+          const pointSketchViewModel = createSketchViewModels(pointLayer);
+          const polylineSketchViewModel = createSketchViewModels(polylineLayer);
+          const polygonSketchViewModel = createSketchViewModels(polygonLayer);
+          const textSketchViewModel = createSketchViewModels(textLayer);
+
+          function createSketchViewModels(layer) {
+            const sketchVM = new SketchViewModel({
+              view,
+              layer,
+              updateOnGraphicClick: true
+            });
+            sketchVM.on("create", addGraphic);
+            if (layer !== textLayer) {
+              sketchVM.on("update", updateMapNotes);
+            }
+            return sketchVM;
+          }
+
+          // Add event handlers for sketching buttons
+          const drawPointButton = document.getElementById("pointButton");
+          drawPointButton.onclick = function () {
+            setActiveButton();
+            // set the sketch to create a point geometry
+            pointSketchViewModel.create("point");
+            setActiveButton(this);
+          };
+
+          const drawPolylineButton = document.getElementById("polylineButton");
+          drawPolylineButton.onclick = function () {
+            // set the sketch to create a polyline geometry
+            polylineSketchViewModel.create("polyline");
+            setActiveButton(this);
+          };
+
+          const drawPolygonButton = document.getElementById("polygonButton");
+          drawPolygonButton.onclick = function () {
+            // set the sketch to create a polygon geometry
+            polygonSketchViewModel.create("polygon");
+            setActiveButton(this);
+          };
+
+          const drawTextButton = document.getElementById("textButton");
+          drawTextButton.onclick = function () {
+            // set the sketch to try to create a text feature with point geometry
+            textSketchViewModel.create("point");
+            setActiveButton(this);
+          };
+
+          // reset button
+          document.getElementById("resetButton").onclick = function () {
+            pointLayer.removeAll();
+            polylineLayer.removeAll();
+            polygonLayer.removeAll();
+            textLayer.removeAll();
+            setActiveButton();
+          };
+
+          // for map note text editing
+          const textInput = document.getElementById("textInput");
+
+          // called when sketchViewModel's create-complete event is fired
+          function addGraphic(event) {
+            if (event.state === "complete") {
+              switch (event.tool) {
+                case "point":
+                  count++;
+                  let elemental = document.getElementsByClassName("active");
+                  if (elemental[0].id == "pointButton") {
+                    pointLayer.remove(event.graphic);
+                    const newPointGraphic = new Graphic({
+                      geometry: event.graphic.geometry,
+                      symbol: {
+                        type: "simple-marker",
+                        style: "circle",
+                        size: 10,
+                        color: [255, 255, 255, 0.8],
+                        outline: {
+                          color: [255, 0, 0],
+                          size: 10,
+                          width: 2
+                        }
+                      },
+                      attributes: {
+                        title: "point map note #" + count
+                      }
+                    });
+                    pointLayer.add(newPointGraphic);
+                  } else if (elemental[0].id == "textButton") {
+                    count++;
+                    textLayer.remove(event.graphic);
+                    const newTextGraphic = new Graphic({
+                      geometry: event.graphic.geometry,
+                      symbol: {
+                        type: "new text alert",
+                        text: "Insert Text",
+                        color: [255, 255, 255],
+                        haloColor: [148, 0, 211],
+                        haloSize: 4,
+                        font: {
+                          family: "Arial Unicode MS",
+                          size: 20
+                        }
+                      },
+                      attributes: {
+                        title: "text map note #" + count
+                      }
+                    });
+                    textLayer.add(newTextGraphic);
+                  } else {
+                    console.log("point logic error occurred");
+                    break;
+                  }
+                  setActiveButton();
+                  break;
+
+                case "polyline":
+                  count++;
+                  polylineLayer.remove(event.graphic);
+                  const newPolylineGraphic = new Graphic({
+                    geometry: event.graphic.geometry,
+                    symbol: {
+                      type: "simple-line",
+                      color: [255, 165, 0, 1],
+                      width: 6
+                    },
+                    attributes: {
+                      title: "polyline map note #" + count
+                    }
+                  });
+                  polylineLayer.add(newPolylineGraphic);
+                  setActiveButton();
+                  break;
+
+                case "polygon":
+                  count++;
+                  polygonLayer.remove(event.graphic);
+                  const newPolygonGraphic = new Graphic({
+                    geometry: event.graphic.geometry,
+                    symbol: {
+                      type: "simple-fill", // autocasts as new SimpleFillSymbol()
+                      color: [41, 55, 73, 0.8],
+                      outline: {
+                        // autocasts as new SimpleLineSymbol()
+                        color: [255, 255, 255, 0.5],
+                        width: 2
+                      }
+                    },
+                    attributes: {
+                      title: "polygon map note #" + count
+                    }
+                  });
+                  polygonLayer.add(newPolygonGraphic);
+                  setActiveButton();
+                  break;
+
+                default:
+                  console.log("geometry type not found: ", event);
+              }
+            }
+          }
+
+          function updateMapNotes(event) {
+            // prevent saving if the feature is still being modified
+            save.disabled = true;
+            const eventInfo = event.toolEventInfo;
+            // once modifications are complete, enable saving again
+            if (event.state === "complete") {
+              save.disabled = false;
+            }
+          }
+
+          // Listen to update event to modify a graphic to view
+          textSketchViewModel.on(["update"], function (event) {
+            // prevent saving if the feature is still being modified
+            save.disabled = true;
+            textInput.addEventListener("keyup", completeTextEdit);
+            textExpand.expand();
+            let currentGraphic = event.graphics[0];
+            let currentText = textInput.nodeValue;
+            const eventInfo = event.toolEventInfo;
+            if (event.state === "complete") {
+              currentGraphic.symbol = new TextSymbol({
+                text: textInput.value,
+                color: [255, 255, 255],
+                haloColor: [1, 68, 33],
+                haloSize: 2,
+                font: {
+                  family: "Arial Unicode MS",
+                  size: 14
+                }
+              });
+              // once modifications are complete, enable saving again
+              save.disabled = false;
+              // once modifications are complete, collapse text input
+              textExpand.collapse();
+            }
+            // populate the textInput with the selected
+            // graphics's symbol text
+            if (event.state === "start") {
+              if (currentGraphic.symbol.type === "text") {
+                let newTextSymbol = currentGraphic.symbol;
+                textInput.value = newTextSymbol.text;
+              }
+            }
+
+            function completeTextEdit(event) {
+              if (event.defaultPrevented) {
+                return;
+              }
+              if (event.key !== undefined) {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  textSketchViewModel.complete();
+                  // once modifications are complete, collapse text input
+                  textExpand.collapse();
+                }
+              }
+            }
+          });
+
+          // for setting the active sketch buton
+          function setActiveButton(selectedButton) {
+            view.focus();
+            const elements = document.getElementsByClassName("active");
+            for (let i = 0; i < elements.length; i++) {
+              elements[i].classList.remove("active");
+            }
+            if (selectedButton) {
+              selectedButton.classList.add("active");
+            }
+          }
+
+          // WebMap saving section
+          const title = document.getElementById("webMapTitle");
+          const save = document.getElementById("saveWebMap");
+          save.disabled = false;
+          save.addEventListener("click", function () {
+            // item automatically casts to a PortalItem instance by saveAs
+            var item = {
+              title: title.value
+            };
+            // Update properties of the WebMap related to the view.
+            // This should be called just before saving a webmap.
+            map.updateFrom(view).then(function () {
+              map
+                .saveAs(item)
+                // Saved successfully
+                .then(function (item) {
+                  var itemPageUrl =
+                    item.portal.url + "/home/item.html?id=" + item.id;
+                  var link =
+                    '<a target="_blank" href="' +
+                    itemPageUrl +
+                    '">' +
+                    title.value +
+                    "</a>";
+                  statusMessage(
+                    "Save WebMap",
+                    "<br> Successfully saved as <i>" + link + "</i>"
+                  );
+                })
+                // Save didn't work correctly
+                .catch(function (error) {
+                  statusMessage("Save WebMap", "<br> Error " + error.message);
+                });
+            });
+          });
+
+          var overlay = document.getElementById("overlayDiv");
+          var ok = overlay.getElementsByTagName("input")[0];
+
+          function statusMessage(head, info) {
+            document.getElementById("head").innerHTML = head;
+            document.getElementById("info").innerHTML = info;
+            overlay.style.visibility = "visible";
+          }
+          ok.addEventListener("click", function () {
+            overlay.style.visibility = "hidden";
+          });
+          view.ui.add("sidebarDiv", "bottom-right");
+        });
       });
     </script>
-                  <script src="{%static 'secrets.js'%}" defer></script>
-
-                  <script src="{%static 'property.js'%}" defer></script>
   </head>
 
   <body>
-    <div id="viewDiv"></div>
-    <div id="actions" class="esri-widget">
-      <button class="esri-button" id="add">Search Results</button>
-      <button class="esri-button" id="remove">Clear Results</button>
+    <div id="viewDiv">
+      <div id="topbar">
+        <button
+          class="action-button esri-icon-map-pin"
+          id="pointButton"
+          type="button"
+          title="Draw point"
+        ></button>
+        <button
+          class="action-button esri-icon-polyline"
+          id="polylineButton"
+          type="button"
+          title="Draw polyline"
+        ></button>
+        <button
+          class="action-button esri-icon-polygon"
+          id="polygonButton"
+          type="button"
+          title="Draw polygon"
+        ></button>
+        <button
+          class="action-button esri-icon-comment"
+          id="textButton"
+          type="button"
+          title="Draw text"
+        ></button>
+        <button
+          class="action-button esri-icon-trash"
+          id="resetButton"
+          type="button"
+          title="Clear graphics"
+        ></button>
+      </div>
+    </div>
+    <div id="textInputDiv" class="esri-widget">
+      <label class="esri-feature-form__label">
+        <input
+          type="text"
+          class="esri-input"
+          id="textInput"
+          value="new text alert"
+        />
+      </label>
+    </div>
+    <div id="sidebarDiv" class="esri-widget">
+      <h4 class="esri-heading">Save WebMap</h4>
+      <label class="esri-feature-form__label">Title</label>
+      <input
+        id="webMapTitle"
+        type="text"
+        class="esri-input"
+        value=""
+      /><br /><br />
+      <button class="esri-button" id="saveWebMap">Save</button>
+    </div>
+    <div id="overlayDiv" class="esri-widget">
+      <h4 class="esri-heading" id="head"></h4>
+      <label id="info"></label><br /><br />
+      <input type="button" value="OK" class="esri-button" />
     </div>
   </body>
 </html>
-
-
